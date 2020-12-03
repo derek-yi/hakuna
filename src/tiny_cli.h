@@ -12,6 +12,9 @@
 
 #define TELNETD_LISTEN_PORT     2300
 
+int cli_telnet_active(void);
+
+int cli_task_init(void);
 
 
 

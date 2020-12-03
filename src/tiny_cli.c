@@ -16,6 +16,7 @@
 #include <arpa/inet.h> 
 
 #include "xmodule.h"
+
 #include "vos.h"
 #include "tiny_cli.h"
 
@@ -41,7 +42,7 @@ uint32     pwd_check_ok = FALSE;
 sem_t print_sem; //sem for print_buff
 char print_buff[8192];
 
-int cli_telnet_active()
+int cli_telnet_active(void)
 {
     return telnet_fd >= 0;
 }
@@ -403,7 +404,7 @@ void cli_prompt(void)
     vos_print("\r\nDaemon>");
 }
 
-void cli_main_task(void)
+void* cli_main_task(void *param)
 {
     char ch;
     int ret;
@@ -435,6 +436,8 @@ void cli_main_task(void)
             cli_buf_insert(ch);
         }
     }
+
+    return NULL;
 }
 
 int cli_task_init(void)

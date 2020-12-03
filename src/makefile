@@ -6,7 +6,9 @@ OBJ=    \
   tiny_cli.o    \
   vos.o   \
   xmodule.o \
-  cxJSON.o
+  cJSON.o \
+  xlog.o \
+  devm_msg.o
 
 
 LIBNAME=libhakuna
@@ -22,7 +24,7 @@ OPTIMIZATION?=
 WARNINGS=-Wall -Wstrict-prototypes -fwrapv
 DEBUG?= -g -ggdb
 REAL_CFLAGS=$(OPTIMIZATION) -fPIC -pthread $(CFLAGS) $(WARNINGS) $(DEBUG)
-REAL_LDFLAGS=$(LDFLAGS) -pthread
+REAL_LDFLAGS=$(LDFLAGS) -pthread -lzlog
 
 DYLIBSUFFIX=so
 STLIBSUFFIX=a
@@ -71,11 +73,16 @@ endif
 all: $(DYLIBNAME) 
 ########################################################################################
 # Deps (use make dep to generate this)
-cxJSON.o: cxJSON.c ../include/cxJSON.h
-devm_msg.o: devm_msg.c ../include/xmodule.h devm_msg.h
+cJSON.o: cJSON.c cJSON.h
+devm_msg.o: devm_msg.c ../include/xmodule.h ../include/xlog.h \
+ ../include/devm_msg.h
 tiny_cli.o: tiny_cli.c ../include/xmodule.h vos.h tiny_cli.h
 vos.o: vos.c ../include/xmodule.h vos.h
-xmodule.o: xmodule.c ../include/xmodule.h ../include/cxJSON.h
+xlog.o: xlog.c ../include/xmodule.h ../include/xlog.h
+xmodule.o: xmodule.c ../include/xmodule.h ../include/xlog.h \
+ ../include/devm_msg.h cJSON.h tiny_cli.h
+
+
 
 
 

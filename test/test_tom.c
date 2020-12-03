@@ -3,12 +3,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "xmodule.h"
 
 char *json_cfg  = \
 "{  \
     \"module_name\": \"tom\",   \
+    \"listen_port\": \"7000\",   \
     \"telnet_enable\": \"1(0-disable, 1-enable)\",  \
     \"cli_enable\": \"1\",  \
     \"end_key\": 0    \

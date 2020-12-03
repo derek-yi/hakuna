@@ -3,7 +3,11 @@
 #include <string.h>
 
 #include "xmodule.h"
-#include "cxJSON.h"
+#include "xlog.h"
+#include "devm_msg.h"
+
+#include "cJSON.h"
+#include "tiny_cli.h"
 
 
 typedef struct _DYN_CFG{
@@ -171,17 +175,21 @@ void xmodule_cmd_init(void)
 int xmodule_init(char *json)
 {
     char *mod_name;
+    int listen_port;
     
     parse_json_cfg(json);
-
-    cli_cmd_init();
-    xmodule_cmd_init();
-    
     sys_conf_set("hakuna", "100");
     mod_name = sys_conf_get("module_name");
     if (mod_name != NULL) {
         sys_conf.mod_name = strdup(mod_name);
+        xlog_init(mod_name);
     }
+
+    cli_cmd_init();
+    xmodule_cmd_init();
+
+    listen_port = sys_conf_geti("listen_port");
+    devm_msg_init(sys_conf.mod_name, listen_port);
 
     if (sys_conf_geti("telnet_enable")) {
         telnet_task_init();

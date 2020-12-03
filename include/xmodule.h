@@ -41,6 +41,11 @@ char *json_cfg  = \
 */
 int xmodule_init(char *json);
 
+char* sys_conf_get(char *key_str);
+
+int sys_conf_geti(char *key_str);
+
+int sys_conf_set(char *key_str, char *value);
 
 /****************************************************************************************
  * cli
@@ -57,8 +62,6 @@ typedef int (* CMD_FUNC)(int argc, char **argv);
 int cli_cmd_reg(const char *cmd, const char *help, CMD_FUNC func);
 
 void cli_cmd_init(void);
-
-void cli_main_task(void);
 
 int telnet_task_init(void);
 
