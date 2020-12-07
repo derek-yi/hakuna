@@ -15,7 +15,7 @@ int sys_node_writestr(char *node_str, char *wr_buf);
 
 int sys_node_write(char *node_str, int value);
 
-typedef void (* timer_callback)(union sigval);
+typedef void (* timer_callback)(void *param);
 
 int vos_create_timer(timer_t *ret_tid, int interval, timer_callback callback, void *param);
 

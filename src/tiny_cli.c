@@ -42,9 +42,19 @@ uint32     pwd_check_ok = FALSE;
 sem_t print_sem; //sem for print_buff
 char print_buff[8192];
 
+CLI_OUT_CB cli_out = NULL;
+void *cb_cookie = NULL;
+
 int cli_telnet_active(void)
 {
     return telnet_fd >= 0;
+}
+
+int cli_set_output_cb(CLI_OUT_CB *cb, void *cookie)
+{
+    cli_out = cb;
+    cb_cookie = cookie;
+    return CMD_OK;
 }
 
 int vos_print(const char * format,...)
@@ -63,7 +73,9 @@ int vos_print(const char * format,...)
     len = vsnprintf(print_buff, 8192, format, args);
     va_end(args);
 
-    if ( cli_telnet_active() ) {
+    if (cli_out != NULL) {
+        cli_out(cb_cookie, print_buff);
+    } else if ( cli_telnet_active() ) {
         write(telnet_fd, print_buff, len);
     } else {
         printf("%s", print_buff);

@@ -22,7 +22,8 @@ typedef struct _SYS_CONF_PARAM
 //"fix.config"
     char    *build_version;
     char    *build_time;
-    char    *mod_name;
+    char    *app_name;
+    int     app_role;
 
 //"dyn.config"
     DYN_CFG_S *dyn_cfg;
@@ -30,6 +31,11 @@ typedef struct _SYS_CONF_PARAM
 
 
 SYS_CONF_PARAM sys_conf;
+
+char *get_app_name(void)
+{   
+    return sys_conf.app_name;
+}
 
 int sys_conf_set(char *key_str, char *value)
 {
@@ -102,7 +108,7 @@ int parse_json_cfg(char *json)
 
 	root_tree = cJSON_Parse(json);
 	if (root_tree == NULL) {
-		xlog_err("parse json file fail");
+		printf("parse json file fail");
         return VOS_ERR;
 	}
 
@@ -114,7 +120,7 @@ int parse_json_cfg(char *json)
 
         dyn_cfg = (DYN_CFG_S *)malloc(sizeof(DYN_CFG_S));
         if (dyn_cfg == NULL) {
-            xlog_err("malloc failed");
+            printf("malloc failed");
             goto EXIT_PROC;
         }
         
@@ -137,7 +143,6 @@ EXIT_PROC:
     return VOS_OK;
 }
 
-
 int cli_sys_cfg_list(int argc, char **argv)
 {
     DYN_CFG_S *p;
@@ -152,7 +157,6 @@ int cli_sys_cfg_list(int argc, char **argv)
 
     return VOS_OK;
 }
-
 
 int cli_sys_cfg_set(int argc, char **argv)
 {
@@ -171,25 +175,26 @@ void xmodule_cmd_init(void)
     cli_cmd_reg("cfg_set",         "sys cfg set",            &cli_sys_cfg_set);
 }
 
-
 int xmodule_init(char *json)
 {
-    char *mod_name;
-    int listen_port;
+    char *cfg_str;
     
     parse_json_cfg(json);
-    sys_conf_set("hakuna", "100");
-    mod_name = sys_conf_get("module_name");
-    if (mod_name != NULL) {
-        sys_conf.mod_name = strdup(mod_name);
-        xlog_init(mod_name);
+    //sys_conf_set("hakuna", "100");
+    
+    cfg_str = sys_conf_get("app_name");
+    if (cfg_str == NULL) {
+        printf("no app name in json \r\n");
+        return VOS_ERR;
     }
+    sys_conf.app_name = strdup(cfg_str);
+    xlog_init(cfg_str);
 
     cli_cmd_init();
     xmodule_cmd_init();
 
-    listen_port = sys_conf_geti("listen_port");
-    devm_msg_init(sys_conf.mod_name, listen_port);
+    sys_conf.app_role = sys_conf_geti("app_role");
+    devm_msg_init(sys_conf.app_name, sys_conf.app_role);
 
     if (sys_conf_geti("telnet_enable")) {
         telnet_task_init();

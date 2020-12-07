@@ -83,7 +83,7 @@ int _xlog(char *file, int line, int level, const char *format, ...)
     return len;    
 }
 
-int xlog_init(char *mod_name)
+int xlog_init(char *app_name)
 {
     return 0;
 }
@@ -92,7 +92,7 @@ int xlog_init(char *mod_name)
 
 zlog_category_t *my_cat = NULL; 
 
-int xlog_init(char *mod_name)
+int xlog_init(char *app_name)
 {
     int rc;
     
@@ -102,7 +102,7 @@ int xlog_init(char *mod_name)
 		return -1;
 	}
 
-	my_cat = zlog_get_category("mod_name");
+	my_cat = zlog_get_category("app_name");
 	if (!my_cat) {
 		printf("get category fail\n");
 		zlog_fini();
@@ -112,7 +112,7 @@ int xlog_init(char *mod_name)
 }
 
 #else
-int xlog_init(char *mod_name)
+int xlog_init(char *app_name)
 {
     return 0;
 }

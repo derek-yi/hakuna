@@ -9,8 +9,8 @@
 
 char *json_cfg  = \
 "{  \
-    \"module_name\": \"tom\",   \
-    \"listen_port\": \"7000\",   \
+    \"app_name\": \"tom\",   \
+    \"app_role\": \"1(1-master, 0-slave)\",   \
     \"telnet_enable\": \"1(0-disable, 1-enable)\",  \
     \"cli_enable\": \"1\",  \
     \"end_key\": 0    \

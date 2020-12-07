@@ -30,15 +30,6 @@ typedef unsigned int uint32;
 /****************************************************************************************
  * config
  ****************************************************************************************/
-/* 
-char *json_cfg  = \
-"{"
-"    \"module_name\": \"jerry\", "
-"    \"telnet_enable\": \"0(0-disable, 1-enable)\", "
-"    \"cli_enable\": \"0\", "
-"    \"end_key\": 0 "
-"}";
-*/
 int xmodule_init(char *json);
 
 char* sys_conf_get(char *key_str);
@@ -46,6 +37,8 @@ char* sys_conf_get(char *key_str);
 int sys_conf_geti(char *key_str);
 
 int sys_conf_set(char *key_str, char *value);
+
+char *get_app_name(void);
 
 /****************************************************************************************
  * cli
@@ -61,13 +54,8 @@ typedef int (* CMD_FUNC)(int argc, char **argv);
 
 int cli_cmd_reg(const char *cmd, const char *help, CMD_FUNC func);
 
-void cli_cmd_init(void);
-
-int telnet_task_init(void);
-
 int vos_print(const char * format,...);
 
-#define xlog_err printf
 /****************************************************************************************
  * vos
  ****************************************************************************************/
