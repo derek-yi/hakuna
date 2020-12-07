@@ -25,6 +25,8 @@ int vos_run_cmd(char *cmd_str);
 
 int vos_print(const char * format,...);
 
+void vos_msleep(uint32 milliseconds);
+
 #endif
 
 

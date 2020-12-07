@@ -11,6 +11,7 @@ char *json_cfg  = \
 "{  \
     \"app_name\": \"tom\",   \
     \"app_role\": \"1(1-master, 0-slave)\",   \
+    \"eth_name\": \"ens33\",   \
     \"telnet_enable\": \"1(0-disable, 1-enable)\",  \
     \"cli_enable\": \"1\",  \
     \"end_key\": 0    \

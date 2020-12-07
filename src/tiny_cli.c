@@ -50,7 +50,7 @@ int cli_telnet_active(void)
     return telnet_fd >= 0;
 }
 
-int cli_set_output_cb(CLI_OUT_CB *cb, void *cookie)
+int cli_set_output_cb(CLI_OUT_CB cb, void *cookie)
 {
     cli_out = cb;
     cb_cookie = cookie;

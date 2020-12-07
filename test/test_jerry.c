@@ -8,12 +8,12 @@
 #include "xmodule.h"
 
 char *json_cfg  = \
-"{"
-"    \"app_name\": \"jerry\", "
-"    \"telnet_enable\": \"0(0-disable, 1-enable)\", "
-"    \"cli_enable\": \"0\", "
-"    \"end_key\": 0 "
-"}";
+"{  \
+    \"app_name\": \"jerry\",   \
+    \"eth_name\": \"ens33\",   \
+    \"end_key\": 0    \
+}";
+
 
 
 int main(int argc, char **argv)

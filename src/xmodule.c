@@ -179,8 +179,11 @@ int xmodule_init(char *json)
 {
     char *cfg_str;
     
-    parse_json_cfg(json);
     //sys_conf_set("hakuna", "100");
+    if (parse_json_cfg(json) < 0) {
+        printf("invalid json cfg \r\n");
+        return VOS_ERR;
+    }
     
     cfg_str = sys_conf_get("app_name");
     if (cfg_str == NULL) {
@@ -189,7 +192,7 @@ int xmodule_init(char *json)
     }
     sys_conf.app_name = strdup(cfg_str);
     xlog_init(cfg_str);
-
+    
     cli_cmd_init();
     xmodule_cmd_init();
 

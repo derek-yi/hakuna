@@ -125,6 +125,8 @@ union sigval {
     void *sival_ptr;
 };
 */
+typedef void (* lib_callback)(union sigval);
+
 int vos_create_timer(timer_t *ret_tid, int interval, timer_callback callback, void *param)
 {
 	timer_t timerid;
@@ -133,7 +135,7 @@ int vos_create_timer(timer_t *ret_tid, int interval, timer_callback callback, vo
 	memset(&evp, 0, sizeof(struct sigevent));
 	evp.sigev_value.sival_ptr = param; 
 	evp.sigev_notify = SIGEV_THREAD;
-	evp.sigev_notify_function = callback;
+	evp.sigev_notify_function = (lib_callback)callback;
 	if (timer_create(CLOCK_REALTIME, &evp, &timerid) == -1) {
         vos_print("timer_create failed(%s)\n", strerror(errno));
 		return 1;

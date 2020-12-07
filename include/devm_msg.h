@@ -9,20 +9,23 @@
 #define MSG_TYPE_MAX                0x20
 
 #define MSG_HEAD_LEN                128
+#define MSG_MAX_PAYLOAD             512
+#define MSG_MAGIC_NUM               0x01015AA5
 
 #define APP_NAME_LEN                32
 typedef struct {
     int  src_ip;
     char src_app[APP_NAME_LEN];
     char dst_app[APP_NAME_LEN];
-    char resv[32]; //keep MSG_HEAD_LEN 128
+    int  magic_num;
+    char resv[28]; //keep MSG_HEAD_LEN 128
 
 //assign by user&app:
     int  msg_type;
     int  sub_cmd;
     int  param[4];
     int  payload_len;
-    char msg_payload[512];
+    char msg_payload[MSG_MAX_PAYLOAD];
 }DEVM_MSG_S;
 
 

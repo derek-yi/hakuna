@@ -22,7 +22,7 @@ int telnet_task_init(void);
 
 typedef int (*CLI_OUT_CB)(void *cookie, char *buff);
 
-int cli_set_output_cb(CLI_OUT_CB *cb, void *cookie);
+int cli_set_output_cb(CLI_OUT_CB cb, void *cookie);
 
 int cli_cmd_exec(char *buff);
 

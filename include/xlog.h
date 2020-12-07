@@ -12,6 +12,7 @@
 #define XLOG_INFO       ZLOG_LEVEL_INFO
 #define XLOG_WARN       ZLOG_LEVEL_WARN
 #define XLOG_ERROR      ZLOG_LEVEL_ERROR
+
 #elif defined (INCLUDE_SYSLOG)
 #include <syslog.h>
 
@@ -19,6 +20,7 @@
 #define XLOG_INFO       LOG_INFO
 #define XLOG_WARN       LOG_WARNING
 #define XLOG_ERROR      LOG_ERR
+
 #else
 #define XLOG_DEBUG      0
 #define XLOG_INFO       1
