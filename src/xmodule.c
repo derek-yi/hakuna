@@ -3,9 +3,6 @@
 #include <string.h>
 
 #include "xmodule.h"
-#include "xlog.h"
-#include "devm_msg.h"
-
 #include "cJSON.h"
 #include "tiny_cli.h"
 

@@ -117,5 +117,24 @@ int xlog_init(char *app_name)
     return 0;
 }
 
+int _xlog(char *file, int line, int level, const char *format, ...)
+{
+    va_list args;
+    char buf[XLOG_BUFF_MAX];
+    int len;
+
+    va_start(args, format);
+    len = vsnprintf(buf, XLOG_BUFF_MAX, format, args);
+    va_end(args);
+
+    if ( (level == XLOG_WARN) || (level == XLOG_ERROR) ){
+        vos_print("%s\r\n", buf);
+    } else {
+        //vos_print("%s\r\n", buf);
+    }
+
+    return len;    
+}
+
 #endif
 

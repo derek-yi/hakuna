@@ -1,35 +1,17 @@
 
-#ifndef _HAKUNA_H_
-#define _HAKUNA_H_
+#ifndef _XMODULE_H_
+#define _XMODULE_H_
+
+#include "vos.h"
+#include "xlog.h"
+#include "xmsg.h"
 
 /****************************************************************************************
- * global config
+ * xmodule
  ****************************************************************************************/
-#ifndef uint8
-typedef unsigned char uint8;
-#endif
+#define APP_ROLE_SLAVE          0
+#define APP_ROLE_MASTER         1
 
-#ifndef uint16
-typedef unsigned short uint16;
-#endif
-
-#ifndef uint32
-typedef unsigned int uint32;
-#endif
-
-#define VOS_OK      0
-#define VOS_ERR     (-1)
-
-#ifndef TRUE
-#define TRUE        1
-#endif
-#ifndef FALSE
-#define FALSE       0
-#endif
-
-/****************************************************************************************
- * config
- ****************************************************************************************/
 int xmodule_init(char *json);
 
 char* sys_conf_get(char *key_str);
@@ -57,11 +39,7 @@ int cli_cmd_reg(const char *cmd, const char *help, CMD_FUNC func);
 int vos_print(const char * format,...);
 
 /****************************************************************************************
- * vos
- ****************************************************************************************/
-
-/****************************************************************************************
- * msg
+ * xx
  ****************************************************************************************/
 
 #endif

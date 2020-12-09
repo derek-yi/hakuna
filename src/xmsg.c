@@ -19,10 +19,7 @@
 #include <net/if.h>
 
 #include "xmodule.h"
-#include "xlog.h"
-#include "devm_msg.h"
 #include "tiny_cli.h"
-#include "vos.h"
 
 #define MAX_CONNECT_NUM 64
 
@@ -41,7 +38,7 @@ sem_t tx_sem;
 
 int local_ip_addr = 0;
 
-int msg_qid;
+int msg_qid = -1;
 
 typedef struct msgbuf
 {
@@ -67,18 +64,18 @@ int get_local_ip(char *if_name)
 
 int devm_set_msg_func(int msg_type, msg_func func)
 {
-    if (msg_type >= MSG_TYPE_MAX) return VOS_ERR;
-
-    msg_func_list[msg_type] = func;
+    if (msg_type >= MSG_TYPE_MAX || msg_type < 0) return VOS_ERR;
     
+    if ( (msg_type < MSG_TYPE_USER_START) && (msg_func_list[msg_type] != NULL) ) {
+        return VOS_ERR;
+    }
+    
+    msg_func_list[msg_type] = func;
     return VOS_OK;
 }
 
 void* msg_rx_task(void *param)  
 {
-    long int temp_val = (long int)param; //suppress warning
-    int socket_id = (int)temp_val;
-    
     while(1) {
         _MSG_INFO raw_msg;
         DEVM_MSG_S *rx_msg;
@@ -89,10 +86,10 @@ void* msg_rx_task(void *param)
             continue;
         }
 
-        //xlog(XLOG_DEBUG, "%s:%d: new msg %ld \n", __FILE__, __LINE__, raw_msg.msgtype);
         rx_msg = &raw_msg.sock_msg;
+        xlog(XLOG_DEBUG, "%d: new msg %d to %s \n", __LINE__, rx_msg->msg_type, rx_msg->dst_app);
         if (strcmp(rx_msg->dst_app, get_app_name())) {
-            if (sys_conf_geti("app_role")) { 
+            if (sys_conf_geti("app_role") == APP_ROLE_MASTER) { 
                 ret = devm_msg_forward(rx_msg);
                 xlog(XLOG_ERROR, "forward msg to %s, ret %d\n", rx_msg->dst_app, ret);
             } else {
@@ -106,7 +103,6 @@ void* msg_rx_task(void *param)
         }
     }
     
-    close(socket_id);
     return NULL;
 }
 
@@ -129,7 +125,7 @@ void* socket_rx_task(void *param)
             continue;
         }
 
-        //xlog(XLOG_DEBUG, ">> new msg %d \n", raw_msg.sock_msg.msg_type);
+        xlog(XLOG_DEBUG, ">> new msg %d \n", raw_msg.sock_msg.msg_type);
         if (raw_msg.sock_msg.magic_num != MSG_MAGIC_NUM) {
             xlog(XLOG_ERROR, "wrong magic 0x%x \n", raw_msg.sock_msg.magic_num);
             continue;
@@ -150,12 +146,14 @@ void* uds_listen_task(void *param)
 {
     int fd,new_fd,ret;
     struct sockaddr_un un;
+	int on = 1;
 
     fd = socket(AF_UNIX, SOCK_STREAM, 0);
     if (fd < 0) {
         xlog(XLOG_ERROR, "socket failed(%s) \n", strerror(errno));
         return NULL;
     }
+	(void)setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
     
     un.sun_family = AF_UNIX;
     unlink(get_app_name());
@@ -170,7 +168,7 @@ void* uds_listen_task(void *param)
         return NULL;
     }
 
-    xlog(XLOG_DEBUG, "uds_listen_task: listen %s \n", get_app_name());
+    xlog(XLOG_DEBUG, "%d: uds_listen_task: listen %s \n", __LINE__, get_app_name());
     while(1){
         pthread_t unused_tid;
         long int temp_val; //suppress warning
@@ -181,7 +179,7 @@ void* uds_listen_task(void *param)
             continue;
         }
 
-        xlog(XLOG_DEBUG, "uds_listen_task: new_fd %d \n", new_fd);
+        xlog(XLOG_DEBUG, "%d: uds_listen_task new_fd %d \n", __LINE__, new_fd);
         temp_val = new_fd;
         ret = pthread_create(&unused_tid, NULL, socket_rx_task, (void *)temp_val);  
         if (ret != 0)  {  
@@ -199,12 +197,14 @@ void* inet_listen_task(void *param)
 {
     int listen_fd, ret;
     struct sockaddr_in inet_addr;
+	int on = 1;
 
     listen_fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (listen_fd < 0) {
         xlog(XLOG_ERROR, "socket failed(%s) \n", strerror(errno));
         return NULL;
     }
+	(void)setsockopt(listen_fd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
     
     memset(&inet_addr, 0, sizeof(inet_addr));
     inet_addr.sin_family =  AF_INET; 
@@ -220,7 +220,7 @@ void* inet_listen_task(void *param)
         return NULL;
     }
 
-    xlog(XLOG_DEBUG, "inet_listen_task: listen %d \n", DEF_LISTEN_PORT);
+    xlog(XLOG_DEBUG, "%d: inet_listen_task listen %d \n", __LINE__, DEF_LISTEN_PORT);
     while(1){
         pthread_t unused_tid;
         long int temp_val; //suppress warning
@@ -232,7 +232,7 @@ void* inet_listen_task(void *param)
             continue;
         }
 
-        xlog(XLOG_DEBUG, "inet_listen_task: new_fd %d \n", new_fd);
+        xlog(XLOG_DEBUG, "%d: inet_listen_task new_fd %d \n", __LINE__, new_fd);
         temp_val = new_fd;
         ret = pthread_create(&unused_tid, NULL, socket_rx_task, (void *)temp_val);  
         if (ret != 0)  {  
@@ -440,7 +440,7 @@ int devm_msg_send(char *dst_app, DEVM_MSG_S *tx_msg)
         return VOS_ERR;
     }
 
-    //xlog(XLOG_DEBUG, ">> send: dst_app %s \n", dst_app);
+    xlog(XLOG_DEBUG, "%d: send to %s \n", __LINE__, dst_app);
     sem_wait(&tx_sem);
     int tx_socket = devm_connect_uds(dst_app);
     if (tx_socket < 0) {
@@ -476,7 +476,7 @@ int devm_msg_send2(int dst_ip, char *dst_app, DEVM_MSG_S *tx_msg)
         return devm_msg_send(dst_app, tx_msg);
     }
 
-    //xlog(XLOG_DEBUG, ">> send2: dst_ip 0x%x, dst_app %s \n", dst_ip, dst_app);
+    xlog(XLOG_DEBUG, "%s send2 to 0x%x %s \n", __LINE__, dst_ip, dst_app);
     sem_wait(&tx_sem);
     int tx_socket = devm_connect_inet(dst_ip);
     if (tx_socket < 0) {
@@ -501,12 +501,33 @@ int devm_msg_send2(int dst_ip, char *dst_app, DEVM_MSG_S *tx_msg)
     return VOS_OK;
 }
 
+int app_send_msg(int dst_ip, char *dst_app, int msg_cmd, char *usr_msg, int msg_len)
+{
+    DEVM_MSG_S tx_msg;
+    
+    if (dst_app == NULL) {
+        xlog(XLOG_ERROR, "Error at %s:%d \n", __FILE__, __LINE__);
+        return VOS_ERR;
+    }
+
+    xlog(XLOG_DEBUG, "%d: app send to 0x%x %s \n", __LINE__, dst_ip, dst_app);
+    memset(&tx_msg, 0, sizeof(tx_msg));
+    if (usr_msg != NULL && msg_len != 0) {
+        memcpy(tx_msg.msg_payload, usr_msg, msg_len);
+        tx_msg.payload_len = msg_len;
+    }
+
+    tx_msg.msg_type = msg_cmd;
+
+    return devm_msg_send2(dst_ip, dst_app, &tx_msg);
+}
+
 #if 1
 int echo_msg_proc(DEVM_MSG_S *rx_msg)
 {
     if (!rx_msg) return VOS_ERR;
     
-    printf("%s", rx_msg->msg_payload);
+    vos_print("%s", rx_msg->msg_payload);
     fflush(stdout);
 
     return VOS_OK;
@@ -515,13 +536,11 @@ int echo_msg_proc(DEVM_MSG_S *rx_msg)
 int cli_fake_print(void *cookie, char *buff)
 {
     DEVM_MSG_S *rx_msg = (DEVM_MSG_S *)cookie;
-    DEVM_MSG_S tx_msg;
+    char usr_msg[512];
 
-    //xlog(XLOG_ERROR, ">> %s \n", buff);
-    tx_msg.msg_type = MSG_TYPE_ECHO;
-    snprintf(tx_msg.msg_payload, MSG_MAX_PAYLOAD, "%s", buff);
-    tx_msg.payload_len = strlen(tx_msg.msg_payload) + 1;
-    devm_msg_send2(rx_msg->src_ip, rx_msg->src_app, &tx_msg);
+    xlog(XLOG_DEBUG, "%d: %s \n", __LINE__, buff);
+    snprintf(usr_msg, 512, "%s", buff);
+    app_send_msg(rx_msg->src_ip, rx_msg->src_app, MSG_TYPE_ECHO, usr_msg, strlen(usr_msg) + 1);
     vos_msleep(3);
     
     return VOS_OK;
@@ -530,7 +549,7 @@ int cli_fake_print(void *cookie, char *buff)
 int rcmd_msg_proc(DEVM_MSG_S *rx_msg)
 {
     if (!rx_msg) return VOS_ERR;
-    printf("rcmd_msg_proc: %s \n", rx_msg->msg_payload);
+    xlog(XLOG_DEBUG, "%d: rcmd_msg_proc %s \n", __LINE__, rx_msg->msg_payload);
 
     cli_set_output_cb(cli_fake_print, rx_msg);
     cli_cmd_exec(rx_msg->msg_payload);
@@ -542,7 +561,7 @@ int rcmd_msg_proc(DEVM_MSG_S *rx_msg)
 int cli_send_echo_cmd(int argc, char **argv)
 {
     int ret;
-    DEVM_MSG_S tx_msg;
+    char usr_msg[64];
     static int echo_cnt = 0;
 
     if (argc < 2) {
@@ -550,22 +569,20 @@ int cli_send_echo_cmd(int argc, char **argv)
         return VOS_OK;
     }
 
-    tx_msg.msg_type = MSG_TYPE_ECHO;
-    sprintf(tx_msg.msg_payload, "tx_msg %d", echo_cnt++);
-    tx_msg.payload_len  = strlen(tx_msg.msg_payload) + 1;
-    ret = devm_msg_send(argv[1], &tx_msg);
+    sprintf(usr_msg, "tx_msg %d", echo_cnt++);
+    ret = app_send_msg(0, argv[1], MSG_TYPE_ECHO, usr_msg, strlen(usr_msg) + 1);
     if (ret != VOS_OK) {  
-        xlog(XLOG_ERROR, "Error at %s:%d, devm_send_msg failed(%d) \n", __FILE__, __LINE__, ret);
+        xlog(XLOG_ERROR, "Error at %s:%d, app_send_msg failed(%d) \n", __FILE__, __LINE__, ret);
         return ret;
     } 
 
     return VOS_OK;
 }
 
-int cli_send_remote_echo(int argc, char **argv)
+int cli_send_echo_cmd2(int argc, char **argv)
 {
     int ret;
-    DEVM_MSG_S tx_msg;
+    char usr_msg[64];
     static int echo_cnt = 100;
     int dst_ip;
 
@@ -574,14 +591,12 @@ int cli_send_remote_echo(int argc, char **argv)
         return VOS_OK;
     }
 
-    tx_msg.msg_type = MSG_TYPE_ECHO;
-    sprintf(tx_msg.msg_payload, "tx_msg %d", echo_cnt++);
-    tx_msg.payload_len  = strlen(tx_msg.msg_payload) + 1;
+    sprintf(usr_msg, "tx_msg %d", echo_cnt++);
     inet_pton(AF_INET, argv[1], &dst_ip);
     
-    ret = devm_msg_send2(dst_ip, argv[2], &tx_msg);
+    ret = app_send_msg(dst_ip, argv[2], MSG_TYPE_ECHO, usr_msg, strlen(usr_msg) + 1);
     if (ret != VOS_OK) {  
-        xlog(XLOG_ERROR, "Error at %s:%d, devm_msg_send2 failed(%d) \n", __FILE__, __LINE__, ret);
+        xlog(XLOG_ERROR, "Error at %s:%d, app_send_msg failed(%d) \n", __FILE__, __LINE__, ret);
         return ret;
     } 
     
@@ -591,22 +606,22 @@ int cli_send_remote_echo(int argc, char **argv)
 int cli_send_remote_cmd(int argc, char **argv)
 {
     int ret;
-    DEVM_MSG_S tx_msg;
+    char usr_msg[256];
     int dst_ip;
+    int offset, i;
 
     if (argc < 4) {
         vos_print("usage: %s <dst_ip> <dst_mod> ...\r\n", argv[0]);
         return VOS_OK;
     }
 
-    tx_msg.msg_type = MSG_TYPE_RCMD;
-    sprintf(tx_msg.msg_payload, "%s", argv[3]);
-    tx_msg.payload_len  = strlen(tx_msg.msg_payload) + 1;
+    for( i = 3, offset = 0; i < argc; i++)
+        offset += sprintf(usr_msg + offset, "%s ", argv[i]);
     inet_pton(AF_INET, argv[1], &dst_ip);
     
-    ret = devm_msg_send2(dst_ip, argv[2], &tx_msg);
+    ret = app_send_msg(dst_ip, argv[2], MSG_TYPE_RCMD, usr_msg, strlen(usr_msg) + 1);
     if (ret != VOS_OK) {  
-        xlog(XLOG_ERROR, "Error at %s:%d, devm_msg_send2 failed(%d) \n", __FILE__, __LINE__, ret);
+        xlog(XLOG_ERROR, "Error at %s:%d, app_send_msg failed(%d) \n", __FILE__, __LINE__, ret);
         return ret;
     } 
     
@@ -639,13 +654,13 @@ int devm_msg_init(char *app_name, int master)
         return VOS_ERR;  
     } 
 
-    ret = pthread_create(&unused_tid, NULL, uds_listen_task, NULL);  
+    ret = pthread_create(&unused_tid, NULL, msg_rx_task, NULL);  
     if (ret != 0)  {  
         xlog(XLOG_ERROR, "pthread_create failed(%s) \n", strerror(errno));
         return VOS_ERR;  
     } 
 
-    ret = pthread_create(&unused_tid, NULL, msg_rx_task, NULL);  
+    ret = pthread_create(&unused_tid, NULL, uds_listen_task, NULL);  
     if (ret != 0)  {  
         xlog(XLOG_ERROR, "pthread_create failed(%s) \n", strerror(errno));
         return VOS_ERR;  
@@ -661,8 +676,8 @@ int devm_msg_init(char *app_name, int master)
 
     devm_set_msg_func(MSG_TYPE_ECHO, echo_msg_proc);
     devm_set_msg_func(MSG_TYPE_RCMD, rcmd_msg_proc);
-    cli_cmd_reg("echo",     "send echo cmd",        &cli_send_echo_cmd);
-    cli_cmd_reg("tx2",      "send2 test",           &cli_send_remote_echo);
+    cli_cmd_reg("echo",     "send test",            &cli_send_echo_cmd);
+    cli_cmd_reg("tx",       "send2 test",           &cli_send_echo_cmd2);
     cli_cmd_reg("rcmd",     "remote cmd",           &cli_send_remote_cmd);
 
     return VOS_OK;

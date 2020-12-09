@@ -12,7 +12,6 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 
-#include "xmodule.h"
 #include "vos.h"
 
 

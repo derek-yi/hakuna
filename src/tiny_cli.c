@@ -16,8 +16,6 @@
 #include <arpa/inet.h> 
 
 #include "xmodule.h"
-
-#include "vos.h"
 #include "tiny_cli.h"
 
 

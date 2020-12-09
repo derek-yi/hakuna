@@ -50,7 +50,10 @@ int _xlog(char *file, int line, int level, const char *format, ...);
     _xlog(__FILE__, __LINE__, level, __VA_ARGS__)
 
 #else
-#define xlog(level, ...)  printf(__VA_ARGS__);
+int _xlog(char *file, int line, int level, const char *format, ...);
+
+#define xlog(level, ...)  \
+    _xlog(__FILE__, __LINE__, level, __VA_ARGS__)
 
 #endif
 
