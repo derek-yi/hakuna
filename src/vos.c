@@ -6,8 +6,8 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <errno.h>
-#include <time.h>   //timer_t
 #include <signal.h>
+#include <time.h>   //timer_t
 #include <sys/time.h>
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -126,7 +126,7 @@ union sigval {
 */
 typedef void (* lib_callback)(union sigval);
 
-int vos_create_timer(timer_t *ret_tid, int interval, timer_callback callback, void *param)
+int vos_create_timer(timer_t *ret_tid, int interval, timer_cb callback, void *param)
 {
 	timer_t timerid;
 	struct sigevent evp;

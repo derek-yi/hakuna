@@ -139,7 +139,7 @@ void cli_show_match_cmd(char *cmd_buf, uint32 key_len)
     pNode = gst_cmd_list;
     while (pNode != NULL)
     {
-        if(strncmp(pNode->cmd_str, cmd_buf, key_len) == 0)
+        if(strncasecmp(pNode->cmd_str, cmd_buf, key_len) == 0)
         {
             vos_print("%-24s -- %-45s \r\n", pNode->cmd_str, pNode->help_str);
         }
@@ -210,7 +210,7 @@ int cli_cmd_exec(char *buff)
     pNode = gst_cmd_list;
     while (pNode != NULL)
     {
-        if(strncmp(pNode->cmd_str, buff, cmd_key_len) == 0)
+        if(strncasecmp(pNode->cmd_str, buff, cmd_key_len) == 0)
         {
             break;
         }
@@ -219,8 +219,8 @@ int cli_cmd_exec(char *buff)
 
 #ifdef CLI_PWD_CHECK
     if (pwd_check_ok != TRUE) {
-        if ( (strncmp("passwd", buff, 6) != 0)  &&
-             (strncmp("quit", buff, 4) != 0) ){
+        if ( (strncasecmp("passwd", buff, 6) != 0)  &&
+             (strncasecmp("quit", buff, 4) != 0) ){
             vos_print("input 'passwd' to verify password, or input 'quit' to exit \r\n");
             return CMD_OK; 
         }
@@ -245,7 +245,7 @@ int cli_cmd_exec(char *buff)
         iNode = pNode->pNext;
         while(iNode != NULL)
         {
-            if(memcmp(iNode->cmd_str, buff, cmd_key_len) == 0)
+            if(strncasecmp(iNode->cmd_str, buff, cmd_key_len) == 0)
             {
                 break;
             }

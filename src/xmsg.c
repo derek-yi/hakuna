@@ -1,4 +1,3 @@
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -17,6 +16,7 @@
 #include <arpa/inet.h>
 #include <sys/ioctl.h>
 #include <net/if.h>
+#include <signal.h>
 
 #include "xmodule.h"
 #include "tiny_cli.h"
@@ -88,7 +88,8 @@ void* msg_rx_task(void *param)
 
         rx_msg = &raw_msg.sock_msg;
         xlog(XLOG_DEBUG, "%d: new msg %d to %s \n", __LINE__, rx_msg->msg_type, rx_msg->dst_app);
-        if (strcmp(rx_msg->dst_app, get_app_name())) {
+        
+        if ( strcmp(rx_msg->dst_app, get_app_name()) ) {
             if (sys_conf_geti("app_role") == APP_ROLE_MASTER) { 
                 ret = devm_msg_forward(rx_msg);
                 xlog(XLOG_ERROR, "forward msg to %s, ret %d\n", rx_msg->dst_app, ret);
@@ -125,7 +126,7 @@ void* socket_rx_task(void *param)
             continue;
         }
 
-        xlog(XLOG_DEBUG, ">> new msg %d \n", raw_msg.sock_msg.msg_type);
+        xlog(XLOG_DEBUG, "%d: new msg %d \n", __LINE__, raw_msg.sock_msg.msg_type);
         if (raw_msg.sock_msg.magic_num != MSG_MAGIC_NUM) {
             xlog(XLOG_ERROR, "wrong magic 0x%x \n", raw_msg.sock_msg.magic_num);
             continue;
@@ -156,8 +157,8 @@ void* uds_listen_task(void *param)
 	(void)setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
     
     un.sun_family = AF_UNIX;
-    unlink(get_app_name());
-    strcpy(un.sun_path, get_app_name());
+    sprintf(un.sun_path, "/tmp/%s", get_app_name());
+    unlink(un.sun_path);
     if (bind(fd, (struct sockaddr *)&un, sizeof(un)) <0 ) {
         xlog(XLOG_ERROR, "bind failed(%s) \n", strerror(errno));
         return NULL;
@@ -269,7 +270,7 @@ int devm_rebuild_usock(char *app_name)
 
     struct sockaddr_un un;
     un.sun_family = AF_UNIX;
-    strcpy(un.sun_path, app_name);
+    sprintf(un.sun_path, "/tmp/%s", app_name);
     ret = connect(socket_id, (struct sockaddr *)&un, sizeof(un));
     if (ret < 0) {
         xlog(XLOG_ERROR, "connect failed(%s) \n", strerror(errno));
@@ -348,7 +349,7 @@ int devm_connect_uds(char *app_name)
 
     struct sockaddr_un un;
     un.sun_family = AF_UNIX;
-    strcpy(un.sun_path, app_name);
+    sprintf(un.sun_path, "/tmp/%s", app_name);
     ret = connect(socket_id, (struct sockaddr *)&un, sizeof(un));
     if ( ret < 0) {
         xlog(XLOG_ERROR, "connect failed(%s) \n", strerror(errno));
@@ -381,7 +382,6 @@ int devm_connect_inet(int dst_ip)
         return VOS_ERR;
     }
     
-    //int socket_id = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, 0);
     int socket_id = socket(AF_INET, SOCK_STREAM, 0);
     if (socket_id < 0) {
         xlog(XLOG_ERROR, "socket failed(%s) \n", strerror(errno));
@@ -476,7 +476,7 @@ int devm_msg_send2(int dst_ip, char *dst_app, DEVM_MSG_S *tx_msg)
         return devm_msg_send(dst_app, tx_msg);
     }
 
-    xlog(XLOG_DEBUG, "%s send2 to 0x%x %s \n", __LINE__, dst_ip, dst_app);
+    xlog(XLOG_DEBUG, "%d: send2 to 0x%x %s \n", __LINE__, dst_ip, dst_app);
     sem_wait(&tx_sem);
     int tx_socket = devm_connect_inet(dst_ip);
     if (tx_socket < 0) {
@@ -523,6 +523,7 @@ int app_send_msg(int dst_ip, char *dst_app, int msg_cmd, char *usr_msg, int msg_
 }
 
 #if 1
+
 int echo_msg_proc(DEVM_MSG_S *rx_msg)
 {
     if (!rx_msg) return VOS_ERR;
@@ -538,7 +539,7 @@ int cli_fake_print(void *cookie, char *buff)
     DEVM_MSG_S *rx_msg = (DEVM_MSG_S *)cookie;
     char usr_msg[512];
 
-    xlog(XLOG_DEBUG, "%d: %s \n", __LINE__, buff);
+    //xlog(XLOG_DEBUG, "%d: %s \n", __LINE__, buff);
     snprintf(usr_msg, 512, "%s", buff);
     app_send_msg(rx_msg->src_ip, rx_msg->src_app, MSG_TYPE_ECHO, usr_msg, strlen(usr_msg) + 1);
     vos_msleep(3);
@@ -558,7 +559,7 @@ int rcmd_msg_proc(DEVM_MSG_S *rx_msg)
     return VOS_OK;
 }
 
-int cli_send_echo_cmd(int argc, char **argv)
+int cli_send_local_echo(int argc, char **argv)
 {
     int ret;
     char usr_msg[64];
@@ -579,7 +580,7 @@ int cli_send_echo_cmd(int argc, char **argv)
     return VOS_OK;
 }
 
-int cli_send_echo_cmd2(int argc, char **argv)
+int cli_send_ip_echo(int argc, char **argv)
 {
     int ret;
     char usr_msg[64];
@@ -617,8 +618,8 @@ int cli_send_remote_cmd(int argc, char **argv)
 
     for( i = 3, offset = 0; i < argc; i++)
         offset += sprintf(usr_msg + offset, "%s ", argv[i]);
+
     inet_pton(AF_INET, argv[1], &dst_ip);
-    
     ret = app_send_msg(dst_ip, argv[2], MSG_TYPE_RCMD, usr_msg, strlen(usr_msg) + 1);
     if (ret != VOS_OK) {  
         xlog(XLOG_ERROR, "Error at %s:%d, app_send_msg failed(%d) \n", __FILE__, __LINE__, ret);
@@ -649,11 +650,12 @@ int devm_msg_init(char *app_name, int master)
     }
 
     ret = sem_init(&tx_sem, 0, 1);
-    if(ret != 0)  {  
+    if (ret != 0)  {  
         xlog(XLOG_ERROR, "sem_init failed(%s) \n", strerror(errno));
         return VOS_ERR;  
     } 
 
+    signal(SIGPIPE, SIG_IGN); //ignore socket reset
     ret = pthread_create(&unused_tid, NULL, msg_rx_task, NULL);  
     if (ret != 0)  {  
         xlog(XLOG_ERROR, "pthread_create failed(%s) \n", strerror(errno));
@@ -676,9 +678,10 @@ int devm_msg_init(char *app_name, int master)
 
     devm_set_msg_func(MSG_TYPE_ECHO, echo_msg_proc);
     devm_set_msg_func(MSG_TYPE_RCMD, rcmd_msg_proc);
-    cli_cmd_reg("echo",     "send test",            &cli_send_echo_cmd);
-    cli_cmd_reg("tx",       "send2 test",           &cli_send_echo_cmd2);
-    cli_cmd_reg("rcmd",     "remote cmd",           &cli_send_remote_cmd);
+    
+    cli_cmd_reg("echo",     "send local echo",          &cli_send_local_echo);
+    cli_cmd_reg("tx",       "send ip echo",             &cli_send_ip_echo);
+    cli_cmd_reg("rcmd",     "remote cmd",               &cli_send_remote_cmd);
 
     return VOS_OK;
 }

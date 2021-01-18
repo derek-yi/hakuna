@@ -24,7 +24,7 @@ OPTIMIZATION?=
 WARNINGS=-Wall -Wstrict-prototypes -fwrapv
 DEBUG?= -g -ggdb
 REAL_CFLAGS=$(OPTIMIZATION) -fPIC -pthread $(CFLAGS) $(WARNINGS) $(DEBUG)
-REAL_LDFLAGS=$(LDFLAGS) -pthread -lzlog
+REAL_LDFLAGS=$(LDFLAGS) -pthread -lzlog -lrt
 
 DYLIBSUFFIX=so
 STLIBSUFFIX=a

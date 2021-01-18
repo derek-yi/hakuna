@@ -12,7 +12,7 @@
 #define APP_ROLE_SLAVE          0
 #define APP_ROLE_MASTER         1
 
-int xmodule_init(char *json);
+int xmodule_init(char *json_file);
 
 char* sys_conf_get(char *key_str);
 
@@ -21,6 +21,10 @@ int sys_conf_geti(char *key_str);
 int sys_conf_set(char *key_str, char *value);
 
 char *get_app_name(void);
+
+char* read_file(const char *filename);
+
+int write_file(const char *filename, char *buff, int buff_size);
 
 /****************************************************************************************
  * cli

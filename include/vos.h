@@ -37,9 +37,18 @@ int sys_node_writestr(char *node_str, char *wr_buf);
 
 int sys_node_write(char *node_str, int value);
 
-typedef void (* timer_callback)(void *param);
+typedef int (* timer_cb)(void *param);
 
-int vos_create_timer(timer_t *ret_tid, int interval, timer_callback callback, void *param);
+typedef struct 
+{
+    uint32      enable;
+    uint32      interval;
+    uint32      run_cnt;
+    timer_cb    cb_func;
+    void       *cookie;
+}TIMER_INFO_S;
+
+int vos_create_timer(timer_t *ret_tid, int interval, timer_cb callback, void *param);
 
 void vos_msleep(uint32 milliseconds);
 

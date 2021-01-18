@@ -3199,4 +3199,29 @@ cleanup:
 
     return content;
 }
+
+int write_file(const char *filename, char *buff, int buff_size) 
+{
+    FILE *file = NULL;
+    size_t wr_chars = 0;
+
+    /* open in read binary mode */
+    file = fopen(filename, "wb");
+    if (file == NULL)
+    {
+        return -1; //error
+    }
+
+    /* read the file into memory */
+    wr_chars = fwrite(buff, sizeof(char), (size_t)buff_size, file);
+    if ((int)wr_chars != buff_size)
+    {
+        fclose(file);
+        return -2; //error
+    }
+
+    fclose(file);
+    return 0; //ok
+}
+
 #endif

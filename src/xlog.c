@@ -1,4 +1,3 @@
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -130,7 +129,7 @@ int _xlog(char *file, int line, int level, const char *format, ...)
     if ( (level == XLOG_WARN) || (level == XLOG_ERROR) ){
         vos_print("%s\r\n", buf);
     } else {
-        //vos_print("%s\r\n", buf);
+        //printf("%s\r\n", buf);
     }
 
     return len;    

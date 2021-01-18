@@ -15,14 +15,16 @@ doc:
 	cd doc && $(MAKE)
 
 test:
-	cd test && $(MAKE)
+	cd app/m_jerry && $(MAKE) && cd -
+	cd app/m_tom && $(MAKE) && cd -
 
 TAGS:
 	find . -type f -name "*.[ch]" | xargs etags -
 
 clean:
 	cd src && $(MAKE) $@
-	cd test && $(MAKE) $@
+	cd app/m_jerry && $(MAKE) $@ && cd -
+	cd app/m_tom && $(MAKE) $@ && cd -
 	rm -f TAGS
 
 distclean: clean
