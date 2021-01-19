@@ -77,7 +77,7 @@ int demo_timer_1(void *param)
 
     snprintf(usr_data, 128, "%s %d", get_app_name(), timer_cnt++);
     app_send_msg(0, get_app_name(), MSG_TYPE_TIMER1, usr_data, strlen(usr_data) + 1);
-    app_send_msg(0, "jerry", MSG_TYPE_TIMER1, usr_data, strlen(usr_data) + 1);
+    //app_send_msg(0, "jerry", MSG_TYPE_TIMER1, usr_data, strlen(usr_data) + 1);
     
     return VOS_OK;
 }

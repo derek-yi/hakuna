@@ -313,6 +313,9 @@ int devm_connect_uds(char *app_name)
         if (sock_list[i].used == FALSE) {
             if (j < 0) j = i;
         }
+        else if (sock_list[i].app_name == NULL) {
+            continue;
+        }
         else if (!strcmp(app_name, sock_list[i].app_name)) {
             return sock_list[i].sock_id;
         }
@@ -384,7 +387,7 @@ int devm_connect_inet(int dst_ip)
     }
 
     sock_list[j].sock_id = socket_id;
-    sock_list[i].dst_ip = dst_ip;
+    sock_list[j].dst_ip = dst_ip;
     sock_list[j].used = TRUE;
     return socket_id;
 }

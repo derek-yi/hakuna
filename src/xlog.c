@@ -147,6 +147,7 @@ int xlog_init(char *app_name)
 
 int xlog_init(char *app_name)
 {
+    sys_conf_set("log_level", "2");
     return 0;
 }
 

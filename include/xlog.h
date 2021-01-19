@@ -22,10 +22,10 @@
 #define XLOG_ERROR      LOG_ERR
 
 #else
-#define XLOG_DEBUG      0
-#define XLOG_INFO       1
-#define XLOG_WARN       2
-#define XLOG_ERROR      3
+#define XLOG_DEBUG      1
+#define XLOG_INFO       2
+#define XLOG_WARN       3
+#define XLOG_ERROR      4
 
 #endif
 
