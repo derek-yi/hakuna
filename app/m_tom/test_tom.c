@@ -1,14 +1,14 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <pthread.h>
-#include <errno.h>
 
 #include "xmodule.h"
 
 #define MSG_TYPE_TIMER1         (MSG_TYPE_USER_START + 1)
 #define MSG_TYPE_USER_CFG       (MSG_TYPE_USER_START + 2)
+
+typedef struct {
+    int  cmd;
+    int  ret;
+    char buff[256];
+}USER_MSG_S;
 
 int timer1_msg_proc(DEVM_MSG_S *rx_msg)
 {
@@ -18,9 +18,48 @@ int timer1_msg_proc(DEVM_MSG_S *rx_msg)
     return VOS_OK;
 }
 
+int cli_rpc_call_test(int argc, char **argv)
+{
+    int ret;
+    USER_MSG_S tx_msg;
+    USER_MSG_S rx_msg;
+
+    if (argc < 2) {
+        vos_print("usage: <%s> <dst_mod> \r\n", argv[0]);
+        return CMD_ERR_PARAM;
+    }
+
+    tx_msg.cmd = 0x1;
+    ret = app_rpc_call(0, argv[1], (char *)&tx_msg, sizeof(tx_msg), (char *)&rx_msg, sizeof(rx_msg));
+    if (ret != VOS_OK) {
+        vos_print("rpc failed\r\n");
+        return CMD_ERR;
+    }
+    vos_print("rx_msg: %s \r\n", rx_msg.buff);
+
+    return VOS_OK;
+}
+
+int usr_rpc_call_proc(void *rx_data, void *tx_data, int *tx_len)
+{
+    USER_MSG_S *rx_msg = (USER_MSG_S *)rx_data;
+    USER_MSG_S *tx_msg = (USER_MSG_S *)tx_data;
+
+    if (rx_msg->cmd == 0x1) {
+        fmt_time_str(tx_msg->buff, 64);
+        strcat(tx_msg->buff, get_app_name());
+        *tx_len = sizeof(USER_MSG_S);
+    }
+    
+    return VOS_OK;
+}
+
 void* demo_main_task(void *param)  
 {
-    devm_set_msg_func(MSG_TYPE_TIMER1, timer1_msg_proc);
+    rpc_set_callback(usr_rpc_call_proc);
+    devm_set_msg_func(MSG_TYPE_TIMER1,      timer1_msg_proc);
+    
+    cli_cmd_reg("rcall",      "rpc call test",            &cli_rpc_call_test);
 
     while(1) {
         //todo
@@ -33,19 +72,19 @@ void* demo_main_task(void *param)
 
 int demo_timer_1(void *param)
 {
-    char usr_msg[512];
+    char usr_data[128];
     static int timer_cnt = 0;
 
-    snprintf(usr_msg, 512, "%s %d", get_app_name(), timer_cnt++);
-    app_send_msg(0, get_app_name(), MSG_TYPE_TIMER1, usr_msg, strlen(usr_msg) + 1);
-    app_send_msg(0, "jerry", MSG_TYPE_TIMER1, usr_msg, strlen(usr_msg) + 1);
+    snprintf(usr_data, 128, "%s %d", get_app_name(), timer_cnt++);
+    app_send_msg(0, get_app_name(), MSG_TYPE_TIMER1, usr_data, strlen(usr_data) + 1);
+    app_send_msg(0, "jerry", MSG_TYPE_TIMER1, usr_data, strlen(usr_data) + 1);
     
     return VOS_OK;
 }
 
 TIMER_INFO_S my_timer_list[] = 
 {
-    {1, 30, 0, demo_timer_1, NULL}, 
+    {1, 30, 0, demo_timer_1, NULL}, //debug only
 };
 
 int demo_timer_callback(void *param)
@@ -71,19 +110,17 @@ int demo_timer_callback(void *param)
 
 int main(int argc, char **argv)
 {
-    char *cfg_file = "./top_cfg.json";
-    int ret = VOS_OK;
+    char *init_cfg = NULL;
+    int ret;
     pthread_t threadid;
     timer_t timer_id;
 
-    if (access(cfg_file, F_OK) != 0) {
-        if (argc < 2) {
-            xlog(XLOG_ERROR, "no cfg file\r\n");
-            return VOS_ERR;
-        }
-        cfg_file = argv[1];  //as init cfg
-    }
-    xmodule_init(cfg_file);
+    if (argc > 1) init_cfg = argv[1];
+    ret = xmodule_init(init_cfg);
+    if (ret != 0)  {  
+        xlog(XLOG_ERROR, "xmodule_init failed");
+        return VOS_ERR;  
+    } 
 
     ret = pthread_create(&threadid, NULL, demo_main_task, NULL);  
     if (ret != 0)  {  
@@ -94,10 +131,12 @@ int main(int argc, char **argv)
     ret = vos_create_timer(&timer_id, 1, demo_timer_callback, NULL);
     if (ret != 0)  {  
         xlog(XLOG_ERROR, "vos_create_timer failed");
-        return -1;  
+        return VOS_ERR;  
     } 
     
-    while(1) sleep(1);
+    //while(1) sleep(1);
+    pthread_join(threadid, NULL);
+    return VOS_OK;
 }
 
 

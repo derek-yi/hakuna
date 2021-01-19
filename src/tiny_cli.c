@@ -256,7 +256,6 @@ int cli_cmd_exec(char *buff)
         {
             cli_show_match_cmd(buff, cmd_key_len);
             return CMD_OK;
-            //return CMD_ERR_AMBIGUOUS;
         }
     }
 #endif    

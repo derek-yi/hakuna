@@ -1,6 +1,3 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 
 #include "xmodule.h"
 #include "cJSON.h"
@@ -104,16 +101,16 @@ int parse_json_cfg(char *json_file)
     cJSON* root_tree;
     int list_cnt;
 
-    printf("load conf %s ...", json_file);
+    printf("load conf %s ...\r\n", json_file);
     json = read_file(json_file);
 	if (json == NULL) {
-		printf("file content is null");
+		printf("file content is null\r\n");
 		return VOS_ERR;
 	}
 
 	root_tree = cJSON_Parse(json);
 	if (root_tree == NULL) {
-		printf("parse json file fail");
+		printf("parse json file fail\r\n");
         return VOS_ERR;
 	}
 
@@ -126,7 +123,7 @@ int parse_json_cfg(char *json_file)
 
         dyn_cfg = (DYN_CFG_S *)malloc(sizeof(DYN_CFG_S));
         if (dyn_cfg == NULL) {
-            printf("malloc failed");
+            printf("malloc failed\r\n");
             goto EXIT_PROC;
         }
         
@@ -247,9 +244,14 @@ void xmodule_cmd_init(void)
 
 int xmodule_init(char *json_file)
 {
+    char *cfg_file = "./top_cfg.json";
     char *app_name;
+
+    if (access(cfg_file, F_OK) != 0) {
+        cfg_file = json_file;  //as init cfg
+    }
     
-    if (parse_json_cfg(json_file) != VOS_OK) {
+    if (parse_json_cfg(cfg_file) != VOS_OK) {
         printf("invalid json cfg \r\n");
         return VOS_ERR;
     }

@@ -1,9 +1,10 @@
 {
-	"aa":	"100",
-	"end_key":	"0",
-	"cli_enable":	"1(0-disable, 1-enable)",
-	"telnet_enable":	"1(0-disable, 1-enable)",
-	"app_role":	"1(1-master, 0-slave)",
+	"log_level":	"1",
+	"app_name":	"tom",
 	"eth_name":	"ens33",
-	"app_name":	"tom"
+	"app_role":	"1(1-master, 0-slave)",
+	"telnet_enable":	"1(0-disable, 1-enable)",
+	"cli_enable":	"1(0-disable, 1-enable)",
+	"end_key":	"0",
+	"aa":	"100"
 }

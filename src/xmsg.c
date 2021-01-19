@@ -1,22 +1,3 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <pthread.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <errno.h>
-#include <sys/types.h>
-#include <sys/ipc.h>
-#include <sys/msg.h>
-#include <sys/socket.h>
-#include <sys/un.h>
-#include <semaphore.h>
-#include <fcntl.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <sys/ioctl.h>
-#include <net/if.h>
-#include <signal.h>
 
 #include "xmodule.h"
 #include "tiny_cli.h"
@@ -29,12 +10,15 @@ typedef struct {
     int  sock_id;
     int  used;
     int  dst_ip;
+    int  hb_cnt;
     char *app_name;  //as module_name
 }SOCK_INFO;
 
 SOCK_INFO sock_list[MAX_CONNECT_NUM] = {0};
 
-sem_t tx_sem;
+pthread_mutex_t tx_mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t rpc_mutex = PTHREAD_MUTEX_INITIALIZER;
+sem_t rpc_sem;
 
 int local_ip_addr = 0;
 
@@ -64,12 +48,10 @@ int get_local_ip(char *if_name)
 
 int devm_set_msg_func(int msg_type, msg_func func)
 {
-    if (msg_type >= MSG_TYPE_MAX || msg_type < 0) return VOS_ERR;
-    
-    if ( (msg_type < MSG_TYPE_USER_START) && (msg_func_list[msg_type] != NULL) ) {
+    if (msg_type >= MSG_TYPE_MAX || msg_type < MSG_TYPE_USER_START) {
         return VOS_ERR;
     }
-    
+
     msg_func_list[msg_type] = func;
     return VOS_OK;
 }
@@ -414,22 +396,22 @@ int devm_msg_forward(DEVM_MSG_S *tx_msg)
         return VOS_ERR;
     }
 
-    sem_wait(&tx_sem);
+    pthread_mutex_lock(&tx_mutex);
     int tx_socket = devm_connect_uds(tx_msg->dst_app);
     if (tx_socket < 0) {
         xlog(XLOG_ERROR, "devm_get_socket failed, %s \n", tx_msg->dst_app);
-        sem_post(&tx_sem);
+        pthread_mutex_unlock(&tx_mutex);
         return VOS_ERR;
     }
 
     if ( send(tx_socket, tx_msg, tx_msg->payload_len + MSG_HEAD_LEN, 0) < MSG_HEAD_LEN ) {
         xlog(XLOG_ERROR, "send failed(%s) \n", strerror(errno));
         devm_rebuild_usock(tx_msg->dst_app);
-        sem_post(&tx_sem);
+        pthread_mutex_unlock(&tx_mutex);
         return VOS_ERR;
     }
 
-    sem_post(&tx_sem);
+    pthread_mutex_unlock(&tx_mutex);
     return VOS_OK;
 }
 
@@ -441,11 +423,11 @@ int devm_msg_send(char *dst_app, DEVM_MSG_S *tx_msg)
     }
 
     xlog(XLOG_DEBUG, "%d: send to %s \n", __LINE__, dst_app);
-    sem_wait(&tx_sem);
+    pthread_mutex_lock(&tx_mutex);
     int tx_socket = devm_connect_uds(dst_app);
     if (tx_socket < 0) {
         xlog(XLOG_ERROR, "Error at %s:%d, devm_get_socket failed \n", __FILE__, __LINE__);
-        sem_post(&tx_sem);
+        pthread_mutex_unlock(&tx_mutex);
         return VOS_ERR;
     }
 
@@ -457,11 +439,11 @@ int devm_msg_send(char *dst_app, DEVM_MSG_S *tx_msg)
     if ( send(tx_socket, tx_msg, tx_msg->payload_len + MSG_HEAD_LEN, 0) < MSG_HEAD_LEN ) {
         xlog(XLOG_ERROR, "send failed(%s) \n", strerror(errno));
         devm_rebuild_usock(dst_app);
-        sem_post(&tx_sem);
+        pthread_mutex_unlock(&tx_mutex);
         return VOS_ERR;
     }
 
-    sem_post(&tx_sem);
+    pthread_mutex_unlock(&tx_mutex);
     return VOS_OK;
 }
 
@@ -477,11 +459,11 @@ int devm_msg_send2(int dst_ip, char *dst_app, DEVM_MSG_S *tx_msg)
     }
 
     xlog(XLOG_DEBUG, "%d: send2 to 0x%x %s \n", __LINE__, dst_ip, dst_app);
-    sem_wait(&tx_sem);
+    pthread_mutex_lock(&tx_mutex);
     int tx_socket = devm_connect_inet(dst_ip);
     if (tx_socket < 0) {
         xlog(XLOG_ERROR, "Error at %s:%d, devm_get_socket failed \n", __FILE__, __LINE__);
-        sem_post(&tx_sem);
+        pthread_mutex_unlock(&tx_mutex);
         return VOS_ERR;
     }
 
@@ -493,15 +475,15 @@ int devm_msg_send2(int dst_ip, char *dst_app, DEVM_MSG_S *tx_msg)
     if ( send(tx_socket, tx_msg, tx_msg->payload_len + MSG_HEAD_LEN, 0) < MSG_HEAD_LEN ) {
         xlog(XLOG_ERROR, "send failed(%s) \n", strerror(errno));
         devm_rebuild_isock(dst_ip);
-        sem_post(&tx_sem);
+        pthread_mutex_unlock(&tx_mutex);
         return VOS_ERR;
     }
 
-    sem_post(&tx_sem);
+    pthread_mutex_unlock(&tx_mutex);
     return VOS_OK;
 }
 
-int app_send_msg(int dst_ip, char *dst_app, int msg_cmd, char *usr_msg, int msg_len)
+int app_send_msg(int dst_ip, char *dst_app, int msg_type, char *usr_data, int data_len)
 {
     DEVM_MSG_S tx_msg;
     
@@ -512,36 +494,136 @@ int app_send_msg(int dst_ip, char *dst_app, int msg_cmd, char *usr_msg, int msg_
 
     xlog(XLOG_DEBUG, "%d: app send to 0x%x %s \n", __LINE__, dst_ip, dst_app);
     memset(&tx_msg, 0, sizeof(tx_msg));
-    if (usr_msg != NULL && msg_len != 0) {
-        memcpy(tx_msg.msg_payload, usr_msg, msg_len);
-        tx_msg.payload_len = msg_len;
+    tx_msg.msg_type = msg_type;
+    if (usr_data != NULL && data_len != 0) {
+        memcpy(tx_msg.msg_payload, usr_data, data_len);
+        tx_msg.payload_len = data_len;
     }
-
-    tx_msg.msg_type = msg_cmd;
 
     return devm_msg_send2(dst_ip, dst_app, &tx_msg);
 }
 
-#if 1
+DEVM_MSG_S rx_msg_data;
+
+int rpc_ack_msg_proc(DEVM_MSG_S *rx_msg)
+{
+    if (!rx_msg) return VOS_ERR;
+    memcpy(&rx_msg_data, rx_msg, sizeof(DEVM_MSG_S));
+    sem_post(&rpc_sem);
+    
+    return VOS_OK;
+}
+
+rpc_func rpc_callback = NULL;
+
+int rpc_set_callback(rpc_func func)
+{
+    rpc_callback = func;
+    return VOS_OK;
+}
+
+int rpc_call_msg_proc(DEVM_MSG_S *rx_msg)
+{
+    int tx_len = 0;
+    char tx_payload[MSG_MAX_PAYLOAD];
+    
+    if (!rx_msg) return VOS_ERR;
+
+    if (rpc_callback != NULL) {
+        rpc_callback(rx_msg->msg_payload, tx_payload, &tx_len);
+        app_send_msg(rx_msg->src_ip, rx_msg->src_app, MSG_TYPE_RPC_ACK, tx_payload, tx_len);
+        return VOS_OK;
+    }
+
+    return VOS_OK;
+}
+
+int app_rpc_call(int dst_ip, char *dst_app, char *user_tx, int tx_len, char *user_rx, int rx_len)
+{
+    int ret;
+    DEVM_MSG_S tx_msg;
+    
+    if (dst_app == NULL) {
+        xlog(XLOG_ERROR, "Error at %s:%d \n", __FILE__, __LINE__);
+        return VOS_ERR;
+    }
+
+    xlog(XLOG_DEBUG, "%d: app send to 0x%x %s \n", __LINE__, dst_ip, dst_app);
+    pthread_mutex_lock(&rpc_mutex);
+    memset(&rx_msg_data, 0, sizeof(DEVM_MSG_S));
+    
+    memset(&tx_msg, 0, sizeof(tx_msg));
+    tx_msg.msg_type = MSG_TYPE_RPC_CALL;
+    if (user_tx != NULL && tx_len != 0) {
+        memcpy(tx_msg.msg_payload, user_tx, tx_len);
+        tx_msg.payload_len = tx_len;
+    }
+    
+    ret = devm_msg_send2(dst_ip, dst_app, &tx_msg);
+    if (ret != VOS_OK) {
+        xlog(XLOG_ERROR, "Error at %s:%d \n", __FILE__, __LINE__);
+        pthread_mutex_unlock(&rpc_mutex);
+        return VOS_ERR;
+    }
+    
+    if ( vos_sem_wait(&rpc_sem, 1000) < 0 ) {
+        xlog(XLOG_ERROR, "timeout at %s:%d \n", __FILE__, __LINE__);
+        pthread_mutex_unlock(&rpc_mutex);
+        return VOS_ERR;
+    }
+    
+    if (rx_msg_data.payload_len < rx_len) {
+        xlog(XLOG_ERROR, "Error at %s:%d \n", __FILE__, __LINE__);
+        pthread_mutex_unlock(&rpc_mutex);
+        return VOS_ERR;
+    }
+    
+    memcpy(user_rx, rx_msg_data.msg_payload, rx_len);
+    pthread_mutex_unlock(&rpc_mutex);
+    return VOS_OK;
+}
 
 int echo_msg_proc(DEVM_MSG_S *rx_msg)
 {
-    if (!rx_msg) return VOS_ERR;
-    
     vos_print("%s", rx_msg->msg_payload);
     fflush(stdout);
 
     return VOS_OK;
 }
 
+int hello_msg_proc(DEVM_MSG_S *rx_msg)
+{
+    int i, j = -1;
+
+    for (i = 0; i < MAX_CONNECT_NUM; i++) {
+        if (sock_list[i].used == FALSE) {
+            if (j < 0) j = i;
+        }
+        else if (!strcmp(rx_msg->src_app, sock_list[i].app_name)) {
+            sock_list[i].hb_cnt++;
+            return VOS_OK;
+        }
+    }
+
+    if (j < 0) { //full
+        //xlog(XLOG_ERROR, "Error at %s:%d \n", __FILE__, __LINE__);
+        return VOS_ERR;
+    }
+
+    //if (client_valid_check(rx_msg)) //todo
+    devm_connect_uds(rx_msg->src_app);
+    
+    return VOS_OK;
+}
+
 int cli_fake_print(void *cookie, char *buff)
 {
     DEVM_MSG_S *rx_msg = (DEVM_MSG_S *)cookie;
-    char usr_msg[512];
+    char usr_data[512];
 
     //xlog(XLOG_DEBUG, "%d: %s \n", __LINE__, buff);
-    snprintf(usr_msg, 512, "%s", buff);
-    app_send_msg(rx_msg->src_ip, rx_msg->src_app, MSG_TYPE_ECHO, usr_msg, strlen(usr_msg) + 1);
+    snprintf(usr_data, 512, "%s", buff);
+    app_send_msg(rx_msg->src_ip, rx_msg->src_app, MSG_TYPE_ECHO, usr_data, strlen(usr_data) + 1);
     vos_msleep(3);
     
     return VOS_OK;
@@ -549,7 +631,6 @@ int cli_fake_print(void *cookie, char *buff)
 
 int rcmd_msg_proc(DEVM_MSG_S *rx_msg)
 {
-    if (!rx_msg) return VOS_ERR;
     xlog(XLOG_DEBUG, "%d: rcmd_msg_proc %s \n", __LINE__, rx_msg->msg_payload);
 
     cli_set_output_cb(cli_fake_print, rx_msg);
@@ -562,7 +643,7 @@ int rcmd_msg_proc(DEVM_MSG_S *rx_msg)
 int cli_send_local_echo(int argc, char **argv)
 {
     int ret;
-    char usr_msg[64];
+    char usr_data[64];
     static int echo_cnt = 0;
 
     if (argc < 2) {
@@ -570,8 +651,8 @@ int cli_send_local_echo(int argc, char **argv)
         return VOS_OK;
     }
 
-    sprintf(usr_msg, "tx_msg %d", echo_cnt++);
-    ret = app_send_msg(0, argv[1], MSG_TYPE_ECHO, usr_msg, strlen(usr_msg) + 1);
+    sprintf(usr_data, "tx_msg %d", echo_cnt++);
+    ret = app_send_msg(0, argv[1], MSG_TYPE_ECHO, usr_data, strlen(usr_data) + 1);
     if (ret != VOS_OK) {  
         xlog(XLOG_ERROR, "Error at %s:%d, app_send_msg failed(%d) \n", __FILE__, __LINE__, ret);
         return ret;
@@ -583,7 +664,7 @@ int cli_send_local_echo(int argc, char **argv)
 int cli_send_ip_echo(int argc, char **argv)
 {
     int ret;
-    char usr_msg[64];
+    char usr_data[64];
     static int echo_cnt = 100;
     int dst_ip;
 
@@ -592,10 +673,10 @@ int cli_send_ip_echo(int argc, char **argv)
         return VOS_OK;
     }
 
-    sprintf(usr_msg, "tx_msg %d", echo_cnt++);
+    sprintf(usr_data, "tx_msg %d", echo_cnt++);
     inet_pton(AF_INET, argv[1], &dst_ip);
     
-    ret = app_send_msg(dst_ip, argv[2], MSG_TYPE_ECHO, usr_msg, strlen(usr_msg) + 1);
+    ret = app_send_msg(dst_ip, argv[2], MSG_TYPE_ECHO, usr_data, strlen(usr_data) + 1);
     if (ret != VOS_OK) {  
         xlog(XLOG_ERROR, "Error at %s:%d, app_send_msg failed(%d) \n", __FILE__, __LINE__, ret);
         return ret;
@@ -607,7 +688,7 @@ int cli_send_ip_echo(int argc, char **argv)
 int cli_send_remote_cmd(int argc, char **argv)
 {
     int ret;
-    char usr_msg[256];
+    char usr_data[256];
     int dst_ip;
     int offset, i;
 
@@ -617,10 +698,10 @@ int cli_send_remote_cmd(int argc, char **argv)
     }
 
     for( i = 3, offset = 0; i < argc; i++)
-        offset += sprintf(usr_msg + offset, "%s ", argv[i]);
+        offset += sprintf(usr_data + offset, "%s ", argv[i]);
 
     inet_pton(AF_INET, argv[1], &dst_ip);
-    ret = app_send_msg(dst_ip, argv[2], MSG_TYPE_RCMD, usr_msg, strlen(usr_msg) + 1);
+    ret = app_send_msg(dst_ip, argv[2], MSG_TYPE_RCMD, usr_data, strlen(usr_data) + 1);
     if (ret != VOS_OK) {  
         xlog(XLOG_ERROR, "Error at %s:%d, app_send_msg failed(%d) \n", __FILE__, __LINE__, ret);
         return ret;
@@ -629,7 +710,18 @@ int cli_send_remote_cmd(int argc, char **argv)
     return VOS_OK;
 }
 
-#endif
+int cli_show_client_list(int argc, char **argv)
+{
+    vos_print("client list: \r\n");
+    for (int i = 0; i < MAX_CONNECT_NUM; i++) {
+        if (sock_list[i].used == FALSE) {
+            continue;
+        }
+        vos_print("--> ip=0x%08x app=%s hb_cnt=%d \r\n", sock_list[i].dst_ip, sock_list[i].app_name, sock_list[i].hb_cnt);
+    }
+
+    return VOS_OK;
+}
 
 int devm_msg_init(char *app_name, int master)
 {
@@ -649,7 +741,7 @@ int devm_msg_init(char *app_name, int master)
         return VOS_ERR;  
     }
 
-    ret = sem_init(&tx_sem, 0, 1);
+    ret = sem_init(&rpc_sem, 0, 0);
     if (ret != 0)  {  
         xlog(XLOG_ERROR, "sem_init failed(%s) \n", strerror(errno));
         return VOS_ERR;  
@@ -676,12 +768,16 @@ int devm_msg_init(char *app_name, int master)
         } 
     }
 
-    devm_set_msg_func(MSG_TYPE_ECHO, echo_msg_proc);
-    devm_set_msg_func(MSG_TYPE_RCMD, rcmd_msg_proc);
-    
+    msg_func_list[MSG_TYPE_ECHO]        = echo_msg_proc;
+    msg_func_list[MSG_TYPE_RCMD]        = rcmd_msg_proc;
+    msg_func_list[MSG_TYPE_RPC_ACK]     = rpc_ack_msg_proc;
+    msg_func_list[MSG_TYPE_RPC_CALL]    = rpc_call_msg_proc;
+    msg_func_list[MSG_TYPE_HELLO]       = hello_msg_proc;
+
     cli_cmd_reg("echo",     "send local echo",          &cli_send_local_echo);
     cli_cmd_reg("tx",       "send ip echo",             &cli_send_ip_echo);
     cli_cmd_reg("rcmd",     "remote cmd",               &cli_send_remote_cmd);
+    cli_cmd_reg("list",     "list client",              &cli_show_client_list);
 
     return VOS_OK;
 }

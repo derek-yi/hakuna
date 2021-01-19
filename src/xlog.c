@@ -75,9 +75,9 @@ int _xlog(char *file, int line, int level, const char *format, ...)
     syslog(level, "%s", buf);
     closelog();
 
-    if ( (level == XLOG_WARN) || (level == XLOG_ERROR) ){
-        vos_print("%s\r\n", buf);
-    }
+    if ( level > sys_conf_geti("log_level") ){
+        printf("%s\r\n", buf);
+    } 
 
     return len;    
 }
@@ -88,6 +88,39 @@ int xlog_init(char *app_name)
 }
 
 #elif defined (INCLUDE_ZLOG)
+
+/* 
+## demo of zlog.conf
+[global]
+strict init = true
+buffer min = 1024
+buffer max = 2MB
+rotate lock file = /tmp/zlog.lock
+default format = "[%-5V][%d.%ms][%c][%f:%L] %m%n"
+file perms = 600
+
+[levels]
+TRACE = 10
+
+[formats]
+simple = "%m"
+normal = "%d %m%n"
+
+## level: "DEBUG", "INFO", "NOTICE", "WARN", "ERROR", "FATAL"
+[rules]
+*.*                     "/var/log/zlog.%c.log", 1MB*3
+*.=TRACE                "/var/log/zlog_trace.log", 1MB*3
+*.=DEBUG                "/var/log/zlog_debug.log", 1MB*3
+*.=INFO                 "/var/log/zlog_info.log", 1MB*3
+*.=WARN                 "/var/log/zlog_warn.log", 1MB*3
+*.=ERROR                "/var/log/zlog_error.log", 1MB*3
+
+## zlog -> syslog -> logserver
+*.=TRACE                >syslog,LOG_LOCAL0;simple
+*.=DEBUG                >syslog,LOG_LOCAL0;simple
+*.=INFO                 >syslog,LOG_LOCAL0;simple
+*.WARN                  >syslog,LOG_LOCAL1;simple
+*/
 
 zlog_category_t *my_cat = NULL; 
 
@@ -111,6 +144,7 @@ int xlog_init(char *app_name)
 }
 
 #else
+
 int xlog_init(char *app_name)
 {
     return 0;
@@ -126,11 +160,9 @@ int _xlog(char *file, int line, int level, const char *format, ...)
     len = vsnprintf(buf, XLOG_BUFF_MAX, format, args);
     va_end(args);
 
-    if ( (level == XLOG_WARN) || (level == XLOG_ERROR) ){
-        vos_print("%s\r\n", buf);
-    } else {
-        //printf("%s\r\n", buf);
-    }
+    if ( level > sys_conf_geti("log_level") ){
+        printf("%s\r\n", buf);
+    } 
 
     return len;    
 }

@@ -58,6 +58,8 @@ int vos_print(const char * format,...);
 
 void vos_msleep(uint32 milliseconds);
 
+int vos_sem_wait(sem_t *sem, uint32 msecs);
+
 #endif
 
 

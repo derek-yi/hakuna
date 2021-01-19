@@ -11,6 +11,7 @@
 #include <sys/time.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <semaphore.h>
 
 #include "vos.h"
 
@@ -205,4 +206,20 @@ int vos_run_cmd(char *cmd_str)
     return VOS_OK;
 }
 
+int vos_sem_wait(sem_t *sem, uint32 msecs)
+{
+	struct timespec ts;
+	uint32 add = 0;
+	uint32 secs = msecs/1000;
+    
+	clock_gettime(CLOCK_REALTIME, &ts);
+
+	msecs = msecs%1000;
+	msecs = msecs*1000*1000 + ts.tv_nsec;
+	add = msecs / (1000*1000*1000);
+	ts.tv_sec += (add + secs);
+	ts.tv_nsec = msecs%(1000*1000*1000);
+ 
+	return sem_timedwait(sem, &ts);
+}
 
