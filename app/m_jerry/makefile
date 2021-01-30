@@ -23,7 +23,7 @@ CFLAGS += -Wall -Wno-unused -Wno-format
 #CFLAGS += -rdynamic -g
 CFLAGS += -g
 
-LINK_FLAGS += -lrt -lpthread -lzlog -lhakuna
+LINK_FLAGS += -lrt -lpthread -lhakuna
 
 ##########################################################
 # src and include
